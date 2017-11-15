@@ -21,6 +21,7 @@ use std::os::raw::c_char;
 use std::ptr;
 use std::slice;
 use std::str::{self, Utf8Error};
+use std::hash::{Hash, Hasher};
 use sys;
 
 /// A type representing an owned, C-compatible, nul-terminated string with no nul bytes in the
@@ -126,6 +127,10 @@ pub struct CString {
     inner: Box<[u8]>,
 }
 
+extern {
+    type CStrRepr;
+}
+
 /// Representation of a borrowed C string.
 ///
 /// This type represents a borrowed reference to a nul-terminated
@@ -197,13 +202,8 @@ pub struct CString {
 /// [`String`]: ../string/struct.String.html
 /// [`CString`]: struct.CString.html
 /// [`from_ptr`]: #method.from_ptr
-#[derive(Hash)]
 pub struct CStr {
-    // FIXME: this should not be represented with a DST slice but rather with
-    //        just a raw `c_char` along with some form of marker to make
-    //        this an unsized type. Essentially `sizeof(&CStr)` should be the
-    //        same as `sizeof(&c_char)` but `CStr` should be an unsized type.
-    inner: [c_char]
+    inner: CStrRepr,
 }
 
 /// An error indicating that an interior nul byte was found.
@@ -319,7 +319,7 @@ impl CString {
     /// the position of the nul byte.
     ///
     /// [`NulError`]: struct.NulError.html
-        pub fn new<T: Into<Vec<u8>>>(t: T) -> Result<CString, NulError> {
+    pub fn new<T: Into<Vec<u8>>>(t: T) -> Result<CString, NulError> {
         Self::_new(t.into())
     }
 
@@ -349,7 +349,7 @@ impl CString {
     ///     let c_string = CString::from_vec_unchecked(raw);
     /// }
     /// ```
-        pub unsafe fn from_vec_unchecked(mut v: Vec<u8>) -> CString {
+    pub unsafe fn from_vec_unchecked(mut v: Vec<u8>) -> CString {
         v.reserve_exact(1);
         v.push(0);
         CString { inner: v.into_boxed_slice() }
@@ -395,7 +395,7 @@ impl CString {
     ///     let c_string = CString::from_raw(raw);
     /// }
     /// ```
-        pub unsafe fn from_raw(ptr: *mut c_char) -> CString {
+    pub unsafe fn from_raw(ptr: *mut c_char) -> CString {
         let len = sys::strlen(ptr) + 1; // Including the NUL byte
         let slice = slice::from_raw_parts_mut(ptr, len as usize);
         CString { inner: Box::from_raw(slice as *mut [c_char] as *mut [u8]) }
@@ -432,7 +432,7 @@ impl CString {
     /// }
     /// ```
     #[inline]
-        pub fn into_raw(self) -> *mut c_char {
+    pub fn into_raw(self) -> *mut c_char {
         Box::into_raw(self.into_inner()) as *mut c_char
     }
 
@@ -456,8 +456,7 @@ impl CString {
     /// let err = cstring.into_string().err().unwrap();
     /// assert_eq!(err.utf8_error().valid_up_to(), 1);
     /// ```
-
-        pub fn into_string(self) -> Result<String, IntoStringError> {
+    pub fn into_string(self) -> Result<String, IntoStringError> {
         String::from_utf8(self.into_bytes())
             .map_err(|e| IntoStringError {
                 error: e.utf8_error(),
@@ -480,7 +479,7 @@ impl CString {
     /// let bytes = c_string.into_bytes();
     /// assert_eq!(bytes, vec![b'f', b'o', b'o']);
     /// ```
-        pub fn into_bytes(self) -> Vec<u8> {
+    pub fn into_bytes(self) -> Vec<u8> {
         let mut vec = self.into_inner().into_vec();
         let _nul = vec.pop();
         debug_assert_eq!(_nul, Some(0u8));
@@ -501,7 +500,7 @@ impl CString {
     /// let bytes = c_string.into_bytes_with_nul();
     /// assert_eq!(bytes, vec![b'f', b'o', b'o', b'\0']);
     /// ```
-        pub fn into_bytes_with_nul(self) -> Vec<u8> {
+    pub fn into_bytes_with_nul(self) -> Vec<u8> {
         self.into_inner().into_vec()
     }
 
@@ -524,7 +523,7 @@ impl CString {
     /// assert_eq!(bytes, &[b'f', b'o', b'o']);
     /// ```
     #[inline]
-        pub fn as_bytes(&self) -> &[u8] {
+    pub fn as_bytes(&self) -> &[u8] {
         &self.inner[..self.inner.len() - 1]
     }
 
@@ -543,7 +542,7 @@ impl CString {
     /// assert_eq!(bytes, &[b'f', b'o', b'o', b'\0']);
     /// ```
     #[inline]
-        pub fn as_bytes_with_nul(&self) -> &[u8] {
+    pub fn as_bytes_with_nul(&self) -> &[u8] {
         &self.inner
     }
 
@@ -561,7 +560,7 @@ impl CString {
     /// assert_eq!(c_str, CStr::from_bytes_with_nul(b"foo\0").unwrap());
     /// ```
     #[inline]
-        pub fn as_c_str(&self) -> &CStr {
+    pub fn as_c_str(&self) -> &CStr {
         &*self
     }
 
@@ -578,7 +577,7 @@ impl CString {
     /// let boxed = c_string.into_boxed_c_str();
     /// assert_eq!(&*boxed, CStr::from_bytes_with_nul(b"foo\0").unwrap());
     /// ```
-        pub fn into_boxed_c_str(self) -> Box<CStr> {
+    pub fn into_boxed_c_str(self) -> Box<CStr> {
         unsafe { Box::from_raw(Box::into_raw(self.into_inner()) as *mut CStr) }
     }
 
@@ -799,9 +798,9 @@ impl CStr {
     /// * There is no guarantee that the memory pointed to by `ptr` contains a
     ///   valid nul terminator byte at the end of the string.
     ///
-    /// > **Note**: This operation is intended to be a 0-cost cast but it is
-    /// > currently implemented with an up-front calculation of the length of
-    /// > the string. This is not guaranteed to always be the case.
+    /// > **Note**: This operation is a 0-cost cast but in older version of Rust
+    /// > it was implemented with an up-front calculation of the length of the
+    /// > string.
     ///
     /// # Examples
     ///
@@ -820,10 +819,9 @@ impl CStr {
     /// }
     /// # }
     /// ```
-        pub unsafe fn from_ptr<'a>(ptr: *const c_char) -> &'a CStr {
-        let len = sys::strlen(ptr);
-        let ptr = ptr as *const u8;
-        CStr::from_bytes_with_nul_unchecked(slice::from_raw_parts(ptr, len as usize + 1))
+    #[inline]
+    pub unsafe fn from_ptr<'a>(ptr: *const c_char) -> &'a CStr {
+        (ptr as *const _).as_ref().expect("cannot convert a null pointer to a CStr")
     }
 
     /// Creates a C string wrapper from a byte slice.
@@ -858,8 +856,7 @@ impl CStr {
     /// let c_str = CStr::from_bytes_with_nul(b"he\0llo\0");
     /// assert!(c_str.is_err());
     /// ```
-        pub fn from_bytes_with_nul(bytes: &[u8])
-                               -> Result<&CStr, FromBytesWithNulError> {
+    pub fn from_bytes_with_nul(bytes: &[u8]) -> Result<&CStr, FromBytesWithNulError> {
         let nul_pos = memchr::memchr(0, bytes);
         if let Some(nul_pos) = nul_pos {
             if nul_pos + 1 != bytes.len() {
@@ -889,8 +886,8 @@ impl CStr {
     /// }
     /// ```
     #[inline]
-        pub unsafe fn from_bytes_with_nul_unchecked(bytes: &[u8]) -> &CStr {
-        &*(bytes as *const [u8] as *const CStr)
+    pub unsafe fn from_bytes_with_nul_unchecked(bytes: &[u8]) -> &CStr {
+        Self::from_ptr(bytes.as_ptr() as *const _)
     }
 
     /// Returns the inner pointer to this C string.
@@ -936,8 +933,8 @@ impl CStr {
     ///
     /// [`CString`]: struct.CString.html
     #[inline]
-        pub fn as_ptr(&self) -> *const c_char {
-        self.inner.as_ptr()
+    pub fn as_ptr(&self) -> *const c_char {
+        &self.inner as *const _ as *const c_char
     }
 
     /// Converts this C string to a byte slice.
@@ -958,7 +955,7 @@ impl CStr {
     /// assert_eq!(c_str.to_bytes(), b"foo");
     /// ```
     #[inline]
-        pub fn to_bytes(&self) -> &[u8] {
+    pub fn to_bytes(&self) -> &[u8] {
         let bytes = self.to_bytes_with_nul();
         &bytes[..bytes.len() - 1]
     }
@@ -968,9 +965,8 @@ impl CStr {
     /// This function is the equivalent of [`to_bytes`] except that it will retain
     /// the trailing nul terminator instead of chopping it off.
     ///
-    /// > **Note**: This method is currently implemented as a 0-cost cast, but
-    /// > it is planned to alter its definition in the future to perform the
-    /// > length calculation whenever this method is called.
+    /// > **Note**: This method will perform the length calculation whenever it
+    /// > is called.
     ///
     /// [`to_bytes`]: #method.to_bytes
     ///
@@ -983,8 +979,12 @@ impl CStr {
     /// assert_eq!(c_str.to_bytes_with_nul(), b"foo\0");
     /// ```
     #[inline]
-        pub fn to_bytes_with_nul(&self) -> &[u8] {
-        unsafe { &*(&self.inner as *const [c_char] as *const [u8]) }
+    pub fn to_bytes_with_nul(&self) -> &[u8] {
+        unsafe {
+            let ptr = self.as_ptr();
+            let len = sys::strlen(ptr) + 1; // Including the NUL byte
+            slice::from_raw_parts(ptr as *const _, len as usize)
+        }
     }
 
     /// Yields a [`&str`] slice if the `CStr` contains valid UTF-8.
@@ -1008,7 +1008,7 @@ impl CStr {
     /// let c_str = CStr::from_bytes_with_nul(b"foo\0").unwrap();
     /// assert_eq!(c_str.to_str(), Ok("foo"));
     /// ```
-        pub fn to_str(&self) -> Result<&str, str::Utf8Error> {
+    pub fn to_str(&self) -> Result<&str, str::Utf8Error> {
         // NB: When CStr is changed to perform the length check in .to_bytes()
         // instead of in from_ptr(), it may be worth considering if this should
         // be rewritten to do the UTF-8 check inline with the length calculation
@@ -1025,10 +1025,8 @@ impl CStr {
     /// CHARACTER` and return a [`Cow`]`::`[`Owned`]`(`[`String`]`)`
     /// with the result.
     ///
-    /// > **Note**: This method is currently implemented to check for validity
-    /// > after a 0-cost cast, but it is planned to alter its definition in the
-    /// > future to perform the length calculation in addition to the UTF-8
-    /// > check whenever this method is called.
+    /// > **Note**: This method will perform the length calculation in addition
+    /// > to the UTF-8 check whenever this method is called.
     ///
     /// [`Cow`]: ../borrow/enum.Cow.html
     /// [`Borrowed`]: ../borrow/enum.Cow.html#variant.Borrowed
@@ -1059,11 +1057,14 @@ impl CStr {
     ///     Cow::Owned(String::from("Hello �World")) as Cow<str>
     /// );
     /// ```
-        pub fn to_string_lossy(&self) -> Cow<str> {
+    pub fn to_string_lossy(&self) -> Cow<str> {
         String::from_utf8_lossy(self.to_bytes())
     }
 
     /// Converts a [`Box`]`<CStr>` into a [`CString`] without copying or allocating.
+    ///
+    /// > **Note**: Although this method will not copy or allocate bytes, it
+    /// > will still perform the length calculation.
     ///
     /// [`Box`]: ../boxed/struct.Box.html
     /// [`CString`]: struct.CString.html
@@ -1077,9 +1078,13 @@ impl CStr {
     /// let boxed = c_string.into_boxed_c_str();
     /// assert_eq!(boxed.into_c_string(), CString::new("foo").unwrap());
     /// ```
-        pub fn into_c_string(self: Box<CStr>) -> CString {
-        let raw = Box::into_raw(self) as *mut [u8];
-        CString { inner: unsafe { Box::from_raw(raw) } }
+    pub fn into_c_string(self: Box<CStr>) -> CString {
+        unsafe {
+            let len = sys::strlen(self.as_ptr()) + 1;
+            let raw = Box::into_raw(self) as *mut u8;
+            let slice = slice::from_raw_parts_mut(raw, len) as *mut [u8];
+            CString { inner: Box::from_raw(slice) }
+        }
     }
 }
 
@@ -1097,6 +1102,12 @@ impl PartialOrd for CStr {
 impl Ord for CStr {
     fn cmp(&self, other: &CStr) -> Ordering {
         self.to_bytes().cmp(&other.to_bytes())
+    }
+}
+
+impl Hash for CStr {
+    fn hash<H: Hasher>(&self, hasher: &mut H) {
+        self.to_bytes_with_nul().hash(hasher);
     }
 }
 
@@ -1149,6 +1160,7 @@ mod tests {
     fn cstr_is_not_fat() {
         use std::mem::size_of;
         assert_eq!(size_of::<&'static CStr>(), size_of::<&'static c_char>());
+        assert_eq!(size_of::<Box<CStr>>(), size_of::<Box<c_char>>());
     }
 
     #[test]
