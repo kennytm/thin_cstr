@@ -1146,6 +1146,12 @@ mod tests {
     use std::collections::hash_map::DefaultHasher;
 
     #[test]
+    fn cstr_is_not_fat() {
+        use std::mem::size_of;
+        assert_eq!(size_of::<&'static CStr>(), size_of::<&'static c_char>());
+    }
+
+    #[test]
     fn c_to_rust() {
         let data = b"123\0";
         let ptr = data.as_ptr() as *const c_char;
