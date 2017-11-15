@@ -8,19 +8,19 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use ascii;
-use borrow::{Cow, Borrow};
-use cmp::Ordering;
-use error::Error;
-use fmt::{self, Write};
-use io;
-use mem;
+use std::ascii;
+use std::borrow::{Cow, Borrow};
+use std::cmp::Ordering;
+use std::error::Error;
+use std::fmt::{self, Write};
+use std::io;
+use std::mem;
 use memchr;
-use ops;
-use os::raw::c_char;
-use ptr;
-use slice;
-use str::{self, Utf8Error};
+use std::ops;
+use std::os::raw::c_char;
+use std::ptr;
+use std::slice;
+use std::str::{self, Utf8Error};
 use sys;
 
 /// A type representing an owned, C-compatible, nul-terminated string with no nul bytes in the
@@ -119,7 +119,6 @@ use sys;
 /// and other memory errors.
 
 #[derive(PartialEq, PartialOrd, Eq, Ord, Hash, Clone)]
-#[stable(feature = "rust1", since = "1.0.0")]
 pub struct CString {
     // Invariant 1: the slice ends with a zero byte and has a length of at least one.
     // Invariant 2: the slice contains only one zero byte.
@@ -199,7 +198,6 @@ pub struct CString {
 /// [`CString`]: struct.CString.html
 /// [`from_ptr`]: #method.from_ptr
 #[derive(Hash)]
-#[stable(feature = "rust1", since = "1.0.0")]
 pub struct CStr {
     // FIXME: this should not be represented with a DST slice but rather with
     //        just a raw `c_char` along with some form of marker to make
@@ -227,7 +225,6 @@ pub struct CStr {
 /// let _: NulError = CString::new(b"f\0oo".to_vec()).unwrap_err();
 /// ```
 #[derive(Clone, PartialEq, Eq, Debug)]
-#[stable(feature = "rust1", since = "1.0.0")]
 pub struct NulError(usize, Vec<u8>);
 
 /// An error indicating that a nul byte was not in the expected position.
@@ -250,7 +247,6 @@ pub struct NulError(usize, Vec<u8>);
 /// let _: FromBytesWithNulError = CStr::from_bytes_with_nul(b"f\0oo").unwrap_err();
 /// ```
 #[derive(Clone, PartialEq, Eq, Debug)]
-#[stable(feature = "cstr_from_bytes", since = "1.10.0")]
 pub struct FromBytesWithNulError {
     kind: FromBytesWithNulErrorKind,
 }
@@ -288,7 +284,6 @@ impl FromBytesWithNulError {
 /// [`CString`]: struct.CString.html
 /// [`CString::into_string`]: struct.CString.html#method.into_string
 #[derive(Clone, PartialEq, Eq, Debug)]
-#[stable(feature = "cstring_into", since = "1.7.0")]
 pub struct IntoStringError {
     inner: CString,
     error: Utf8Error,
@@ -324,8 +319,7 @@ impl CString {
     /// the position of the nul byte.
     ///
     /// [`NulError`]: struct.NulError.html
-    #[stable(feature = "rust1", since = "1.0.0")]
-    pub fn new<T: Into<Vec<u8>>>(t: T) -> Result<CString, NulError> {
+        pub fn new<T: Into<Vec<u8>>>(t: T) -> Result<CString, NulError> {
         Self::_new(t.into())
     }
 
@@ -355,8 +349,7 @@ impl CString {
     ///     let c_string = CString::from_vec_unchecked(raw);
     /// }
     /// ```
-    #[stable(feature = "rust1", since = "1.0.0")]
-    pub unsafe fn from_vec_unchecked(mut v: Vec<u8>) -> CString {
+        pub unsafe fn from_vec_unchecked(mut v: Vec<u8>) -> CString {
         v.reserve_exact(1);
         v.push(0);
         CString { inner: v.into_boxed_slice() }
@@ -402,8 +395,7 @@ impl CString {
     ///     let c_string = CString::from_raw(raw);
     /// }
     /// ```
-    #[stable(feature = "cstr_memory", since = "1.4.0")]
-    pub unsafe fn from_raw(ptr: *mut c_char) -> CString {
+        pub unsafe fn from_raw(ptr: *mut c_char) -> CString {
         let len = sys::strlen(ptr) + 1; // Including the NUL byte
         let slice = slice::from_raw_parts_mut(ptr, len as usize);
         CString { inner: Box::from_raw(slice as *mut [c_char] as *mut [u8]) }
@@ -440,8 +432,7 @@ impl CString {
     /// }
     /// ```
     #[inline]
-    #[stable(feature = "cstr_memory", since = "1.4.0")]
-    pub fn into_raw(self) -> *mut c_char {
+        pub fn into_raw(self) -> *mut c_char {
         Box::into_raw(self.into_inner()) as *mut c_char
     }
 
@@ -466,8 +457,7 @@ impl CString {
     /// assert_eq!(err.utf8_error().valid_up_to(), 1);
     /// ```
 
-    #[stable(feature = "cstring_into", since = "1.7.0")]
-    pub fn into_string(self) -> Result<String, IntoStringError> {
+        pub fn into_string(self) -> Result<String, IntoStringError> {
         String::from_utf8(self.into_bytes())
             .map_err(|e| IntoStringError {
                 error: e.utf8_error(),
@@ -490,8 +480,7 @@ impl CString {
     /// let bytes = c_string.into_bytes();
     /// assert_eq!(bytes, vec![b'f', b'o', b'o']);
     /// ```
-    #[stable(feature = "cstring_into", since = "1.7.0")]
-    pub fn into_bytes(self) -> Vec<u8> {
+        pub fn into_bytes(self) -> Vec<u8> {
         let mut vec = self.into_inner().into_vec();
         let _nul = vec.pop();
         debug_assert_eq!(_nul, Some(0u8));
@@ -512,8 +501,7 @@ impl CString {
     /// let bytes = c_string.into_bytes_with_nul();
     /// assert_eq!(bytes, vec![b'f', b'o', b'o', b'\0']);
     /// ```
-    #[stable(feature = "cstring_into", since = "1.7.0")]
-    pub fn into_bytes_with_nul(self) -> Vec<u8> {
+        pub fn into_bytes_with_nul(self) -> Vec<u8> {
         self.into_inner().into_vec()
     }
 
@@ -536,8 +524,7 @@ impl CString {
     /// assert_eq!(bytes, &[b'f', b'o', b'o']);
     /// ```
     #[inline]
-    #[stable(feature = "rust1", since = "1.0.0")]
-    pub fn as_bytes(&self) -> &[u8] {
+        pub fn as_bytes(&self) -> &[u8] {
         &self.inner[..self.inner.len() - 1]
     }
 
@@ -556,8 +543,7 @@ impl CString {
     /// assert_eq!(bytes, &[b'f', b'o', b'o', b'\0']);
     /// ```
     #[inline]
-    #[stable(feature = "rust1", since = "1.0.0")]
-    pub fn as_bytes_with_nul(&self) -> &[u8] {
+        pub fn as_bytes_with_nul(&self) -> &[u8] {
         &self.inner
     }
 
@@ -575,8 +561,7 @@ impl CString {
     /// assert_eq!(c_str, CStr::from_bytes_with_nul(b"foo\0").unwrap());
     /// ```
     #[inline]
-    #[stable(feature = "as_c_str", since = "1.20.0")]
-    pub fn as_c_str(&self) -> &CStr {
+        pub fn as_c_str(&self) -> &CStr {
         &*self
     }
 
@@ -593,8 +578,7 @@ impl CString {
     /// let boxed = c_string.into_boxed_c_str();
     /// assert_eq!(&*boxed, CStr::from_bytes_with_nul(b"foo\0").unwrap());
     /// ```
-    #[stable(feature = "into_boxed_c_str", since = "1.20.0")]
-    pub fn into_boxed_c_str(self) -> Box<CStr> {
+        pub fn into_boxed_c_str(self) -> Box<CStr> {
         unsafe { Box::from_raw(Box::into_raw(self.into_inner()) as *mut CStr) }
     }
 
@@ -613,7 +597,6 @@ impl CString {
 // Turns this `CString` into an empty string to prevent
 // memory unsafe code from working by accident. Inline
 // to prevent LLVM from optimizing it away in debug builds.
-#[stable(feature = "cstring_drop", since = "1.13.0")]
 impl Drop for CString {
     #[inline]
     fn drop(&mut self) {
@@ -621,7 +604,6 @@ impl Drop for CString {
     }
 }
 
-#[stable(feature = "rust1", since = "1.0.0")]
 impl ops::Deref for CString {
     type Target = CStr;
 
@@ -631,14 +613,12 @@ impl ops::Deref for CString {
     }
 }
 
-#[stable(feature = "rust1", since = "1.0.0")]
 impl fmt::Debug for CString {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Debug::fmt(&**self, f)
     }
 }
 
-#[stable(feature = "cstring_into", since = "1.7.0")]
 impl From<CString> for Vec<u8> {
     #[inline]
     fn from(s: CString) -> Vec<u8> {
@@ -646,7 +626,6 @@ impl From<CString> for Vec<u8> {
     }
 }
 
-#[stable(feature = "cstr_debug", since = "1.3.0")]
 impl fmt::Debug for CStr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "\"")?;
@@ -657,7 +636,6 @@ impl fmt::Debug for CStr {
     }
 }
 
-#[stable(feature = "cstr_default", since = "1.10.0")]
 impl<'a> Default for &'a CStr {
     fn default() -> &'a CStr {
         const SLICE: &'static [c_char] = &[0];
@@ -665,7 +643,6 @@ impl<'a> Default for &'a CStr {
     }
 }
 
-#[stable(feature = "cstr_default", since = "1.10.0")]
 impl Default for CString {
     /// Creates an empty `CString`.
     fn default() -> CString {
@@ -674,13 +651,11 @@ impl Default for CString {
     }
 }
 
-#[stable(feature = "cstr_borrow", since = "1.3.0")]
 impl Borrow<CStr> for CString {
     #[inline]
     fn borrow(&self) -> &CStr { self }
 }
 
-#[stable(feature = "box_from_c_str", since = "1.17.0")]
 impl<'a> From<&'a CStr> for Box<CStr> {
     fn from(s: &'a CStr) -> Box<CStr> {
         let boxed: Box<[u8]> = Box::from(s.to_bytes_with_nul());
@@ -688,7 +663,6 @@ impl<'a> From<&'a CStr> for Box<CStr> {
     }
 }
 
-#[stable(feature = "c_string_from_box", since = "1.18.0")]
 impl From<Box<CStr>> for CString {
     #[inline]
     fn from(s: Box<CStr>) -> CString {
@@ -696,7 +670,6 @@ impl From<Box<CStr>> for CString {
     }
 }
 
-#[stable(feature = "box_from_c_string", since = "1.20.0")]
 impl From<CString> for Box<CStr> {
     #[inline]
     fn from(s: CString) -> Box<CStr> {
@@ -704,7 +677,6 @@ impl From<CString> for Box<CStr> {
     }
 }
 
-#[stable(feature = "default_box_extra", since = "1.17.0")]
 impl Default for Box<CStr> {
     fn default() -> Box<CStr> {
         let boxed: Box<[u8]> = Box::from([0]);
@@ -729,8 +701,7 @@ impl NulError {
     /// let nul_error = CString::new("foo bar\0").unwrap_err();
     /// assert_eq!(nul_error.nul_position(), 7);
     /// ```
-    #[stable(feature = "rust1", since = "1.0.0")]
-    pub fn nul_position(&self) -> usize { self.0 }
+        pub fn nul_position(&self) -> usize { self.0 }
 
     /// Consumes this error, returning the underlying vector of bytes which
     /// generated the error in the first place.
@@ -743,23 +714,19 @@ impl NulError {
     /// let nul_error = CString::new("foo\0bar").unwrap_err();
     /// assert_eq!(nul_error.into_vec(), b"foo\0bar");
     /// ```
-    #[stable(feature = "rust1", since = "1.0.0")]
-    pub fn into_vec(self) -> Vec<u8> { self.1 }
+        pub fn into_vec(self) -> Vec<u8> { self.1 }
 }
 
-#[stable(feature = "rust1", since = "1.0.0")]
 impl Error for NulError {
     fn description(&self) -> &str { "nul byte found in data" }
 }
 
-#[stable(feature = "rust1", since = "1.0.0")]
 impl fmt::Display for NulError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "nul byte found in provided data at position: {}", self.0)
     }
 }
 
-#[stable(feature = "rust1", since = "1.0.0")]
 impl From<NulError> for io::Error {
     fn from(_: NulError) -> io::Error {
         io::Error::new(io::ErrorKind::InvalidInput,
@@ -767,7 +734,6 @@ impl From<NulError> for io::Error {
     }
 }
 
-#[stable(feature = "frombyteswithnulerror_impls", since = "1.17.0")]
 impl Error for FromBytesWithNulError {
     fn description(&self) -> &str {
         match self.kind {
@@ -779,7 +745,6 @@ impl Error for FromBytesWithNulError {
     }
 }
 
-#[stable(feature = "frombyteswithnulerror_impls", since = "1.17.0")]
 impl fmt::Display for FromBytesWithNulError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str(self.description())?;
@@ -795,19 +760,16 @@ impl IntoStringError {
     /// error.
     ///
     /// [`CString`]: struct.CString.html
-    #[stable(feature = "cstring_into", since = "1.7.0")]
-    pub fn into_cstring(self) -> CString {
+        pub fn into_cstring(self) -> CString {
         self.inner
     }
 
     /// Access the underlying UTF-8 error that was the cause of this error.
-    #[stable(feature = "cstring_into", since = "1.7.0")]
-    pub fn utf8_error(&self) -> Utf8Error {
+        pub fn utf8_error(&self) -> Utf8Error {
         self.error
     }
 }
 
-#[stable(feature = "cstring_into", since = "1.7.0")]
 impl Error for IntoStringError {
     fn description(&self) -> &str {
         "C string contained non-utf8 bytes"
@@ -818,7 +780,6 @@ impl Error for IntoStringError {
     }
 }
 
-#[stable(feature = "cstring_into", since = "1.7.0")]
 impl fmt::Display for IntoStringError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.description().fmt(f)
@@ -859,8 +820,7 @@ impl CStr {
     /// }
     /// # }
     /// ```
-    #[stable(feature = "rust1", since = "1.0.0")]
-    pub unsafe fn from_ptr<'a>(ptr: *const c_char) -> &'a CStr {
+        pub unsafe fn from_ptr<'a>(ptr: *const c_char) -> &'a CStr {
         let len = sys::strlen(ptr);
         let ptr = ptr as *const u8;
         CStr::from_bytes_with_nul_unchecked(slice::from_raw_parts(ptr, len as usize + 1))
@@ -898,8 +858,7 @@ impl CStr {
     /// let c_str = CStr::from_bytes_with_nul(b"he\0llo\0");
     /// assert!(c_str.is_err());
     /// ```
-    #[stable(feature = "cstr_from_bytes", since = "1.10.0")]
-    pub fn from_bytes_with_nul(bytes: &[u8])
+        pub fn from_bytes_with_nul(bytes: &[u8])
                                -> Result<&CStr, FromBytesWithNulError> {
         let nul_pos = memchr::memchr(0, bytes);
         if let Some(nul_pos) = nul_pos {
@@ -930,8 +889,7 @@ impl CStr {
     /// }
     /// ```
     #[inline]
-    #[stable(feature = "cstr_from_bytes", since = "1.10.0")]
-    pub unsafe fn from_bytes_with_nul_unchecked(bytes: &[u8]) -> &CStr {
+        pub unsafe fn from_bytes_with_nul_unchecked(bytes: &[u8]) -> &CStr {
         &*(bytes as *const [u8] as *const CStr)
     }
 
@@ -978,8 +936,7 @@ impl CStr {
     ///
     /// [`CString`]: struct.CString.html
     #[inline]
-    #[stable(feature = "rust1", since = "1.0.0")]
-    pub fn as_ptr(&self) -> *const c_char {
+        pub fn as_ptr(&self) -> *const c_char {
         self.inner.as_ptr()
     }
 
@@ -1001,8 +958,7 @@ impl CStr {
     /// assert_eq!(c_str.to_bytes(), b"foo");
     /// ```
     #[inline]
-    #[stable(feature = "rust1", since = "1.0.0")]
-    pub fn to_bytes(&self) -> &[u8] {
+        pub fn to_bytes(&self) -> &[u8] {
         let bytes = self.to_bytes_with_nul();
         &bytes[..bytes.len() - 1]
     }
@@ -1027,8 +983,7 @@ impl CStr {
     /// assert_eq!(c_str.to_bytes_with_nul(), b"foo\0");
     /// ```
     #[inline]
-    #[stable(feature = "rust1", since = "1.0.0")]
-    pub fn to_bytes_with_nul(&self) -> &[u8] {
+        pub fn to_bytes_with_nul(&self) -> &[u8] {
         unsafe { &*(&self.inner as *const [c_char] as *const [u8]) }
     }
 
@@ -1053,8 +1008,7 @@ impl CStr {
     /// let c_str = CStr::from_bytes_with_nul(b"foo\0").unwrap();
     /// assert_eq!(c_str.to_str(), Ok("foo"));
     /// ```
-    #[stable(feature = "cstr_to_str", since = "1.4.0")]
-    pub fn to_str(&self) -> Result<&str, str::Utf8Error> {
+        pub fn to_str(&self) -> Result<&str, str::Utf8Error> {
         // NB: When CStr is changed to perform the length check in .to_bytes()
         // instead of in from_ptr(), it may be worth considering if this should
         // be rewritten to do the UTF-8 check inline with the length calculation
@@ -1105,8 +1059,7 @@ impl CStr {
     ///     Cow::Owned(String::from("Hello �World")) as Cow<str>
     /// );
     /// ```
-    #[stable(feature = "cstr_to_str", since = "1.4.0")]
-    pub fn to_string_lossy(&self) -> Cow<str> {
+        pub fn to_string_lossy(&self) -> Cow<str> {
         String::from_utf8_lossy(self.to_bytes())
     }
 
@@ -1124,35 +1077,29 @@ impl CStr {
     /// let boxed = c_string.into_boxed_c_str();
     /// assert_eq!(boxed.into_c_string(), CString::new("foo").unwrap());
     /// ```
-    #[stable(feature = "into_boxed_c_str", since = "1.20.0")]
-    pub fn into_c_string(self: Box<CStr>) -> CString {
+        pub fn into_c_string(self: Box<CStr>) -> CString {
         let raw = Box::into_raw(self) as *mut [u8];
         CString { inner: unsafe { Box::from_raw(raw) } }
     }
 }
 
-#[stable(feature = "rust1", since = "1.0.0")]
 impl PartialEq for CStr {
     fn eq(&self, other: &CStr) -> bool {
         self.to_bytes().eq(other.to_bytes())
     }
 }
-#[stable(feature = "rust1", since = "1.0.0")]
 impl Eq for CStr {}
-#[stable(feature = "rust1", since = "1.0.0")]
 impl PartialOrd for CStr {
     fn partial_cmp(&self, other: &CStr) -> Option<Ordering> {
         self.to_bytes().partial_cmp(&other.to_bytes())
     }
 }
-#[stable(feature = "rust1", since = "1.0.0")]
 impl Ord for CStr {
     fn cmp(&self, other: &CStr) -> Ordering {
         self.to_bytes().cmp(&other.to_bytes())
     }
 }
 
-#[stable(feature = "cstr_borrow", since = "1.3.0")]
 impl ToOwned for CStr {
     type Owned = CString;
 
@@ -1161,14 +1108,12 @@ impl ToOwned for CStr {
     }
 }
 
-#[stable(feature = "cstring_asref", since = "1.7.0")]
 impl<'a> From<&'a CStr> for CString {
     fn from(s: &'a CStr) -> CString {
         s.to_owned()
     }
 }
 
-#[stable(feature = "cstring_asref", since = "1.7.0")]
 impl ops::Index<ops::RangeFull> for CString {
     type Output = CStr;
 
@@ -1178,7 +1123,6 @@ impl ops::Index<ops::RangeFull> for CString {
     }
 }
 
-#[stable(feature = "cstring_asref", since = "1.7.0")]
 impl AsRef<CStr> for CStr {
     #[inline]
     fn as_ref(&self) -> &CStr {
@@ -1186,7 +1130,6 @@ impl AsRef<CStr> for CStr {
     }
 }
 
-#[stable(feature = "cstring_asref", since = "1.7.0")]
 impl AsRef<CStr> for CString {
     #[inline]
     fn as_ref(&self) -> &CStr {
@@ -1197,10 +1140,10 @@ impl AsRef<CStr> for CString {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use os::raw::c_char;
-    use borrow::Cow::{Borrowed, Owned};
-    use hash::{Hash, Hasher};
-    use collections::hash_map::DefaultHasher;
+    use std::os::raw::c_char;
+    use std::borrow::Cow::{Borrowed, Owned};
+    use std::hash::{Hash, Hasher};
+    use std::collections::hash_map::DefaultHasher;
 
     #[test]
     fn c_to_rust() {
