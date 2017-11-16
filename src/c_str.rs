@@ -207,8 +207,8 @@ pub struct CStr {
     inner: CStrRepr,
 }
 
-// FIXME: We can't `unsafe impl Freeze for CStr` yet,
-//        see https://github.com/rust-lang/rust/issues/43467#issuecomment-344955343
+// Note: We can't `unsafe impl Freeze for CStr`,
+//       see https://github.com/rust-lang/rust/issues/43467#issuecomment-344955343
 unsafe impl Send for CStr {}
 unsafe impl Sync for CStr {}
 impl UnwindSafe for CStr {}

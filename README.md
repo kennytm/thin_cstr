@@ -122,13 +122,13 @@ The main rationale of this RFC is that `*CStr` being fat was considered a bug. A
 alternative is "not do this", accepting a fat `*CStr` as a feature. In this case, we would modify
 the documentation and get rid of all mentions of potential performance changes.
 
-We currently use extern type as this is the only way to get a thin DST. Extern types currently
-implements none of the standard auto traits (`Send`, `Sync`, `Freeze`, `UnwindSafe`,
-`RefUnwindSafe`), while a `[c_char]` slice implements all of them. Currently `Freeze` cannot be
-manually implemented as it is [private in libcore][a]. Furthermore, it means whenever a new
-auto-trait is introduced (probably by third-party), it will need to be manually implemented for
-`CStr`. If this semantics of extern type cannot be modified, we may need to consider reviving the
-custom DST RFC ([RFC 1524]) for more control.
+We currently use extern type as this is the only way to get a thin DST. Extern types will not
+automatically implement auto traits (`Send`, `Sync`, `UnwindSafe`, `RefUnwindSafe`, etc), while a
+`[c_char]` slice will. Currently `Freeze` cannot be implemented at all since it is
+[private in libcore][a] (although it is expected and losing it will not affect language semantics).
+Furthermore, it means whenever a new auto-trait is introduced (probably by third-party), it will
+need to be manually implemented for `CStr`. If this semantics of extern type cannot be tolerated, we
+may need to consider reviving the custom DST RFC ([RFC 1524]) for more control.
 
 [RFC 1524]: https://github.com/rust-lang/rfcs/pull/1524
 [a]: https://github.com/rust-lang/rust/issues/43467#issuecomment-344955343
@@ -136,4 +136,4 @@ custom DST RFC ([RFC 1524]) for more control.
 ## Unresolved questions
 [unresolved]: #unresolved-questions
 
-How to make the thin `CStr` implement `Freeze`.
+~~How to make the thin `CStr` implement `Freeze`.~~ (irrelevant)
