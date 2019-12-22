@@ -20,7 +20,7 @@ mod memchr {
 
 mod sys {
     use std::os::raw::{c_char, c_int, c_void};
-    extern {
+    extern "C" {
         pub fn strlen(ptr: *const c_char) -> usize;
         pub fn memchr(s: *const c_void, c: c_int, n: usize) -> *mut c_void;
     }

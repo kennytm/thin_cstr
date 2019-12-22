@@ -1,3 +1,7 @@
+**Important:** Currently the `extern type`-based `CStr` will not work in containers involving
+`size_of_val`, such as `Box<CStr>`. Read <https://github.com/kennytm/thin_cstr/issues/1> and
+<https://github.com/rust-lang/rust/pull/64021> before trying to use a thin `CStr`.
+
 Pre-RFC: Make `*CStr` a Thin Pointer
 ====================================
 
